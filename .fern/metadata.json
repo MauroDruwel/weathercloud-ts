@@ -1,0 +1,23 @@
+{
+    "cliVersion": "5.140.0",
+    "generatorName": "fernapi/fern-typescript-sdk",
+    "generatorVersion": "3.80.1",
+    "generatorConfig": {
+        "namespaceExport": "Weathercloud",
+        "skipResponseValidation": true,
+        "packageJson": {
+            "name": "weathercloud",
+            "version": "1.0.0",
+            "description": "TypeScript SDK for the Weathercloud API",
+            "repository": {
+                "type": "git",
+                "url": "https://github.com/MauroDruwel/weathercloud-ts.git"
+            },
+            "author": "Mauro Druwel",
+            "license": "MIT"
+        }
+    },
+    "originGitCommit": "6c7686622cba6856fd41270407fa63fad69793b0",
+    "originGitCommitIsDirty": true,
+    "invokedBy": "manual"
+}
