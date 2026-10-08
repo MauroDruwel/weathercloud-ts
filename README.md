@@ -1,303 +1,245 @@
-# Weathercloud TypeScript Library
+# Weathercloud TypeScript / JavaScript Library
 
-[![fern shield](https://img.shields.io/badge/%F0%9F%8C%BF-Built%20with%20Fern-brightgreen)](https://buildwithfern.com?utm_source=github&utm_medium=github&utm_campaign=readme&utm_source=Weathercloud%2FTypeScript)
+[![npm version](https://img.shields.io/npm/v/weathercloud.svg?color=blue)](https://www.npmjs.com/package/weathercloud)
+[![npm downloads](https://img.shields.io/npm/dm/weathercloud.svg)](https://www.npmjs.com/package/weathercloud)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Fern](https://img.shields.io/badge/%F0%9F%8C%BF-Built%20with%20Fern-brightgreen)](https://buildwithfern.com)
 
-The Weathercloud TypeScript library provides convenient access to the Weathercloud APIs from TypeScript.
+Typed, modern TypeScript / Node.js client library for [Weathercloud](https://weathercloud.net) — query real-time weather station sensor readings, METAR airport observations, sensor statistics, and historical trends without requiring authentication or CSRF tokens.
+
+Works in Node.js 18+, Bun, Deno, and modern browser / edge environments.
+
+---
 
 ## Table of Contents
 
-- [Reference](#reference)
-- [Usage](#usage)
-- [Environments](#environments)
-- [Request and Response Types](#request-and-response-types)
-- [Exception Handling](#exception-handling)
-- [Advanced](#advanced)
-  - [Subpackage Exports](#subpackage-exports)
-  - [Additional Headers](#additional-headers)
-  - [Additional Query String Parameters](#additional-query-string-parameters)
-  - [Retries](#retries)
-  - [Timeouts](#timeouts)
-  - [Aborting Requests](#aborting-requests)
-  - [Access Raw Response Data](#access-raw-response-data)
-  - [Logging](#logging)
-  - [Custom Fetch](#custom-fetch)
-  - [Runtime Compatibility](#runtime-compatibility)
-- [Contributing](#contributing)
+- [Installation](#installation)
+- [Quickstart](#quickstart)
+- [Live Weather Station Readings](#live-weather-station-readings)
+- [Sensor Variables Reference](#sensor-variables-reference)
+- [Station Profile & Metadata](#station-profile--metadata)
+- [Map & Station Discovery](#map--station-discovery)
+- [METAR Airport Observations](#metar-airport-observations)
+- [Error Handling](#error-handling)
+- [Custom Configuration & Environments](#custom-configuration--environments)
+- [Full Reference](#full-reference)
 
-## Reference
+---
 
-A full reference for this library is available [here](./reference.md).
+## Installation
 
-## Usage
+```bash
+npm install weathercloud
+```
 
-Instantiate and use the client with the following:
+Or using [pnpm](https://pnpm.io) or [yarn](https://yarnpkg.com):
+
+```bash
+pnpm add weathercloud
+# or
+yarn add weathercloud
+# or
+bun add weathercloud
+```
+
+---
+
+## Quickstart
+
+Get current weather readings for any public Weathercloud station using its device ID (e.g., `5726468552`):
 
 ```typescript
-import { WeathercloudClient } from "./src/Client";
+import { WeathercloudClient } from "weathercloud";
 
-const client = new WeathercloudClient({ requestedWith: "YOUR_REQUESTED_WITH" });
-await client.auth.login({
-    "LoginForm[entity]": "LoginForm[entity]",
-    "LoginForm[password]": "LoginForm[password]"
+const client = new WeathercloudClient();
+
+// Query live sensor readings — no login or CSRF tokens required
+const weather = await client.deviceLive.getValues({
+  deviceId: "5726468552",
 });
+
+console.log(`Timestamp:   ${weather.epoch}`);
+console.log(`Temperature: ${weather.temp} °C`);
+console.log(`Humidity:    ${weather.hum} %`);
+console.log(`Pressure:    ${weather.bar} hPa`);
+console.log(`Wind Speed:  ${weather.wspd} m/s (Gusts: ${weather.wspdhi} m/s)`);
+console.log(`Wind Dir:    ${weather.wdir}°`);
+console.log(`Daily Rain:  ${weather.rain} mm`);
 ```
 
-## Environments
+---
 
-This SDK allows you to configure different environments for API requests.
+## Live Weather Station Readings
+
+### All Sensor Values
+
+`client.deviceLive.getValues(...)` returns strongly-typed sensor readings:
 
 ```typescript
-import { WeathercloudClient, WeathercloudEnvironment } from "Weathercloud";
+import { WeathercloudClient } from "weathercloud";
 
-const client = new WeathercloudClient({
-    environment: WeathercloudEnvironment.Default,
+const client = new WeathercloudClient();
+
+const values = await client.deviceLive.getValues({
+  deviceId: "5726468552",
 });
-```
 
-## Request and Response Types
+// Temperature & Humidity
+console.log(`Temp: ${values.temp}°C | Dew Point: ${values.dew}°C | Heat Index: ${values.heat}°C | Chill: ${values.chill}°C`);
+console.log(`Humidity: ${values.hum}%`);
 
-The SDK exports all request and response types as TypeScript interfaces. Simply import them with the
-following namespace:
+// Wind
+console.log(`Wind Speed: ${values.wspd} m/s (Avg: ${values.wspdavg} m/s, Max: ${values.wspdhi} m/s)`);
+console.log(`Direction:  ${values.wdir}° (Avg: ${values.wdiravg}°)`);
 
-```typescript
-import { Weathercloud } from "Weathercloud";
+// Barometer & Rain
+console.log(`Barometer:  ${values.bar} hPa`);
+console.log(`Rain Today: ${values.rain} mm (Rate: ${values.rainrate} mm/h)`);
 
-const request: Weathercloud.LoginAuthRequest = {
-    ...
-};
-```
-
-## Exception Handling
-
-When the API returns a non-success status code (4xx or 5xx response), a subclass of the following error
-will be thrown.
-
-```typescript
-import { WeathercloudError } from "Weathercloud";
-
-try {
-    await client.auth.login(...);
-} catch (err) {
-    if (err instanceof WeathercloudError) {
-        console.log(err.statusCode);
-        console.log(err.message);
-        console.log(err.body);
-        console.log(err.rawResponse);
-    }
+// Solar & UV (if supported by station hardware)
+if (values.uvi !== undefined) {
+  console.log(`UV Index: ${values.uvi}`);
+}
+if (values.solarrad !== undefined) {
+  console.log(`Solar Radiation: ${values.solarrad} W/m²`);
 }
 ```
 
-## Advanced
+---
 
-### Subpackage Exports
+## Sensor Variables Reference
 
-This SDK supports direct imports of subpackage clients, which allows JavaScript bundlers to tree-shake and include only the imported subpackage code. This results in much smaller bundle sizes.
+Weathercloud reports abbreviated keys across its API. The SDK exposes these as clean, camelCase typed properties:
+
+| Property | Type | Description | Unit / Format |
+|---|---|---|---|
+| `epoch` | `number` | Timestamp of last sensor transmission | Unix epoch (seconds) |
+| `temp` | `number` | Air temperature | °C |
+| `dew` | `number` | Dew point | °C |
+| `chill` | `number` | Wind chill | °C |
+| `heat` | `number` | Heat index | °C |
+| `hum` | `number` | Relative humidity | % (0–100) |
+| `bar` | `number` | Atmospheric / barometric pressure | hPa |
+| `wdir` | `number` | Instantaneous wind direction | Degrees (0–360°) |
+| `wdiravg` | `number` | Average wind direction | Degrees (0–360°) |
+| `wspd` | `number` | Instantaneous wind speed | m/s |
+| `wspdavg` | `number` | Average wind speed | m/s |
+| `wspdhi` | `number` | Peak wind gust of the day | m/s |
+| `rain` | `number` | Accumulated daily precipitation | mm |
+| `rainrate` | `number` | Current precipitation rate | mm/h |
+| `uvi` | `number` | UV index | Index (0–16) |
+| `solarrad` | `number` | Solar radiation | W/m² |
+
+---
+
+## Station Profile & Metadata
+
+Retrieve station model, manufacturer, coordinates, and observer details:
 
 ```typescript
-import { AuthClient } from 'Weathercloud/auth';
+import { WeathercloudClient } from "weathercloud";
 
-const client = new AuthClient({...});
+const client = new WeathercloudClient();
+
+// Station metadata
+const info = await client.deviceLive.getInfo({
+  deviceId: "5726468552",
+});
+
+if (info.device) {
+  console.log(`Station Name: ${info.device.name}`);
+  console.log(`Model:        ${info.device.model}`);
+  console.log(`Coordinates:  ${info.device.latitude}, ${info.device.longitude}`);
+}
+
+// Global network statistics
+const stats = await client.deviceLive.getStats();
+console.log(`Active Devices:     ${stats.devicesActive}`);
+console.log(`Total Measurements: ${stats.measurementsTotal}`);
 ```
 
-### Additional Headers
+---
 
-If you would like to send additional headers as part of the request, use the `headers` request option.
+## Map & Station Discovery
+
+Discover active weather stations within a geographic area or near coordinates:
 
 ```typescript
-import { WeathercloudClient } from "Weathercloud";
+import { WeathercloudClient } from "weathercloud";
+
+const client = new WeathercloudClient();
+
+// Search stations in a latitude/longitude bounding box
+const devices = await client.map.getDevices({
+  minLat: 40.7000,
+  maxLat: 40.8500,
+  minLon: -74.0500,
+  maxLon: -73.9000,
+});
+
+for (const dev of devices) {
+  console.log(`ID: ${dev.id} | Name: ${dev.name} | Lat: ${dev.latitude}, Lon: ${dev.longitude}`);
+}
+```
+
+---
+
+## METAR Airport Observations
+
+Query aviation weather reports from global airport METAR stations:
+
+```typescript
+import { WeathercloudClient } from "weathercloud";
+
+const client = new WeathercloudClient();
+
+// Fetch airport METAR report by ICAO identifier (e.g., EHAM)
+const metar = await client.metar.getValues({
+  deviceId: "EHAM",
+});
+
+console.log(`Airport METAR:`, metar);
+```
+
+---
+
+## Error Handling
+
+All failed HTTP requests throw typed `WeathercloudError`:
+
+```typescript
+import { WeathercloudClient, WeathercloudError } from "weathercloud";
+
+const client = new WeathercloudClient();
+
+try {
+  const weather = await client.deviceLive.getValues({
+    deviceId: "nonexistent-id",
+  });
+} catch (err) {
+  if (err instanceof WeathercloudError) {
+    console.error(`Status: ${err.statusCode}`);
+    console.error(`Message: ${err.message}`);
+  }
+}
+```
+
+---
+
+## Custom Configuration & Environments
+
+```typescript
+import { WeathercloudClient, WeathercloudEnvironment } from "weathercloud";
 
 const client = new WeathercloudClient({
-    ...
-    headers: {
-        'X-Custom-Header': 'custom value'
-    }
-});
-
-const response = await client.auth.login(..., {
-    headers: {
-        'X-Custom-Header': 'custom value'
-    }
+  environment: WeathercloudEnvironment.Default,
+  maxRetries: 3,
+  timeoutInSeconds: 15,
 });
 ```
 
-### Additional Query String Parameters
+---
 
-If you would like to send additional query string parameters as part of the request, use the `queryParams` request option.
+## Full Reference
 
-```typescript
-const response = await client.auth.login(..., {
-    queryParams: {
-        'customQueryParamKey': 'custom query param value'
-    }
-});
-```
-
-### Retries
-
-The SDK is instrumented with automatic retries with exponential backoff. A request will be retried as long
-as the request is deemed retryable and the number of retry attempts has not grown larger than the configured
-retry limit (default: 2).
-
-Which status codes are retried depends on the `retryStatusCodes` generator configuration:
-
-**`legacy`** (current default): retries on
-- [408](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) (Timeout)
-- [429](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) (Too Many Requests)
-- [5XX](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#server_error_responses) (All server errors, including 500)
-
-**`recommended`**: retries on
-- [408](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) (Timeout)
-- [429](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) (Too Many Requests)
-- [502](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) (Bad Gateway)
-- [503](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) (Service Unavailable)
-- [504](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504) (Gateway Timeout)
-
-Use the `maxRetries` request option to configure this behavior.
-
-```typescript
-const response = await client.auth.login(..., {
-    maxRetries: 0 // override maxRetries at the request level
-});
-```
-
-### Timeouts
-
-The SDK defaults to a 60 second timeout. Use the `timeoutInSeconds` option to configure this behavior.
-
-```typescript
-const response = await client.auth.login(..., {
-    timeoutInSeconds: 30 // override timeout to 30s
-});
-```
-
-### Aborting Requests
-
-The SDK allows users to abort requests at any point by passing in an abort signal.
-
-```typescript
-const controller = new AbortController();
-const response = await client.auth.login(..., {
-    abortSignal: controller.signal
-});
-controller.abort(); // aborts the request
-```
-
-### Access Raw Response Data
-
-The SDK provides access to raw response data, including headers, through the `.withRawResponse()` method.
-The `.withRawResponse()` method returns a promise that results to an object with a `data` and a `rawResponse` property.
-
-```typescript
-const { data, rawResponse } = await client.auth.login(...).withRawResponse();
-
-console.log(data);
-console.log(rawResponse.headers['X-My-Header']);
-```
-
-### Logging
-
-The SDK supports logging. You can configure the logger by passing in a `logging` object to the client options.
-
-```typescript
-import { WeathercloudClient, logging } from "Weathercloud";
-
-const client = new WeathercloudClient({
-    ...
-    logging: {
-        level: logging.LogLevel.Debug, // defaults to logging.LogLevel.Info
-        logger: new logging.ConsoleLogger(), // defaults to ConsoleLogger
-        silent: false, // defaults to true, set to false to enable logging
-    }
-});
-```
-The `logging` object can have the following properties:
-- `level`: The log level to use. Defaults to `logging.LogLevel.Info`.
-- `logger`: The logger to use. Defaults to a `logging.ConsoleLogger`.
-- `silent`: Whether to silence the logger. Defaults to `true`.
-
-The `level` property can be one of the following values:
-- `logging.LogLevel.Debug`
-- `logging.LogLevel.Info`
-- `logging.LogLevel.Warn`
-- `logging.LogLevel.Error`
-
-To provide a custom logger, you can pass in an object that implements the `logging.ILogger` interface.
-
-<details>
-<summary>Custom logger examples</summary>
-
-Here's an example using the popular `winston` logging library.
-```ts
-import winston from 'winston';
-
-const winstonLogger = winston.createLogger({...});
-
-const logger: logging.ILogger = {
-    debug: (msg, ...args) => winstonLogger.debug(msg, ...args),
-    info: (msg, ...args) => winstonLogger.info(msg, ...args),
-    warn: (msg, ...args) => winstonLogger.warn(msg, ...args),
-    error: (msg, ...args) => winstonLogger.error(msg, ...args),
-};
-```
-
-Here's an example using the popular `pino` logging library.
-
-```ts
-import pino from 'pino';
-
-const pinoLogger = pino({...});
-
-const logger: logging.ILogger = {
-  debug: (msg, ...args) => pinoLogger.debug(args, msg),
-  info: (msg, ...args) => pinoLogger.info(args, msg),
-  warn: (msg, ...args) => pinoLogger.warn(args, msg),
-  error: (msg, ...args) => pinoLogger.error(args, msg),
-};
-```
-</details>
-
-
-### Custom Fetch
-
-The SDK provides a low-level `fetch` method for making custom HTTP requests while still
-benefiting from SDK-level configuration like authentication, retries, timeouts, and logging.
-This is useful for calling API endpoints not yet supported in the SDK.
-
-```typescript
-const response = await client.fetch("/v1/custom/endpoint", {
-    method: "GET",
-}, {
-    timeoutInSeconds: 30,
-    maxRetries: 3,
-    headers: {
-        "X-Custom-Header": "custom-value",
-    },
-});
-
-const data = await response.json();
-```
-
-### Runtime Compatibility
-
-
-The SDK works in the following runtimes:
-
-
-
-- Node.js 18+
-- Vercel
-- Cloudflare Workers
-- Deno v1.25+
-- Bun 1.0+
-- React Native
-
-
-## Contributing
-
-While we value open-source contributions to this SDK, this library is generated programmatically.
-Additions made directly to this library would have to be moved over to our generation code,
-otherwise they would be overwritten upon the next generated release. Feel free to open a PR as
-a proof of concept, but know that we will not be able to merge it as-is. We suggest opening
-an issue first to discuss with us!
-
-On the other hand, contributions to the README are always very welcome!
+For comprehensive API definitions, request parameters, and response schemas, see [reference.md](./reference.md).

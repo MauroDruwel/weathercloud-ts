@@ -1,4 +1,5 @@
-node_modules
-.DS_Store
-/dist
-fern-dist
+node_modules/
+dist/
+*.tsbuildinfo
+.npmrc
+.env
